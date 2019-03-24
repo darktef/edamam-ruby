@@ -26,15 +26,15 @@ module Edamam
       end
 
       VERB_MAP.keys.each do |method_name|
-        define_method(method_name) do |path, params, header = {}|
-          process_request(method_name, path, params, header)
+        define_method(method_name) do |client, path, params, header = {}|
+          process_request(client, method_name, path, params, header)
         end
       end
 
       private
 
-      def process_request(method, path, params, header)
-        response = make_request(method, path, params, header)
+      def process_request(client, method, path, params, header)
+        response = make_request(client, method, path, params, header)
         raise_error_or_parse_body(response.code, response.body)
       rescue Timeout::Error, SocketError, TypeError => e
         Edamam.log.error e.message
@@ -46,26 +46,26 @@ module Edamam
         [code, JSON.parse(body)]
       end
 
-      def make_request(method, path, params = {}, headers = {})
-        path = method == :get ? encode_path_params(path, params) : path
+      def make_request(client, method, path, params = {}, headers = {})
+        path = encode_path_params(client, path, params.reject { |k, v| k == :body })
         request = VERB_MAP[method.to_sym].new(path)
-        request.set_form_data(params) if method == :post
-        set_headers(headers)
+
+        if method == :post
+          request.body = params[:body].to_json
+          request.add_field("Content-Type", "application/json")
+        end
+
         @http.request(request)
       end
 
-      def encode_path_params(path, params)
+      def encode_path_params(client, path, params)
+        params.merge!(
+          app_key: client.app_key,
+          app_id: client.app_id
+        )
         encoded_path = URI.encode_www_form(params)
         unescaped_encoded_path = [path, encoded_path].join("?").tr("+", " ")
         URI.escape(unescaped_encoded_path)
-      end
-
-      def set_headers(headers)
-        unless headers.empty?
-          headers.each do |key, value|
-            request.add_field(key.to_s, value)
-          end
-        end
       end
     end
   end

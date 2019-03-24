@@ -1,6 +1,7 @@
 module Edamam
   class Client
     attr_accessor :app_key, :app_id, :food_database
+
     def initialize(**args)
       args.each_pair do |attribute, value|
         instance_variable_set("@#{attribute}", value)
